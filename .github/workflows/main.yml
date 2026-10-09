@@ -1,0 +1,69 @@
+
+# Название автоматического процесса
+name: Unity 2D Platformer CI/CD
+
+# Запуск при отправке изменений в main
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  # ЗАДАЧА 1: Проверка структуры проекта
+  sanity_check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check Unity Directories
+        run: |
+          echo "=== Проверка наличия метаданных Unity ==="
+          if [ -d "ProjectSettings" ]; then
+            echo "ProjectSettings найден."
+          else
+            echo "Ошибка: ProjectSettings не найден!"
+            exit 1
+          fi
+          if [ -d "Packages" ]; then
+            echo "Packages найден."
+          else
+            echo "Ошибка: Packages не найден!"
+            exit 1
+          fi
+
+      - name: Locate 2D Platformer Scripts
+        run: |
+          echo "=== Поиск C# скриптов в папке Assets ==="
+          find Assets/ -name "*Controller.cs" -print
+          find Assets/ -name "BuildManager.cs" -print
+
+  # ЗАДАЧА 2: Копирование в резервный репозиторий
+  mirror_repo:
+    needs: sanity_check
+    if: github.repository == 'medrss/platformer-microgame-labs'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify token is set
+        env:
+          BACKUP_TOKEN: ${{ secrets.BACKUP_TOKEN }}
+        run: |
+          if [ -z "$BACKUP_TOKEN" ]; then
+            echo "Ошибка: BACKUP_TOKEN не задан!"
+            exit 1
+          else
+            echo "BACKUP_TOKEN задан."
+          fi
+
+      - name: Push to Backup Repository
+        env:
+          BACKUP_TOKEN: ${{ secrets.BACKUP_TOKEN }}
+        run: |
+          echo "=== Начало процесса зеркалирования ==="
+          git push --force "https://x-access-token:${BACKUP_TOKEN}@github.com/medrss/2d_platformer_backup.git" main
+          echo "=== Код успешно продублирован ==="
